@@ -6,28 +6,32 @@
 
 #include <cstdint>
 #include <functional>
-#include <list>
-#include <memory>
-#include <optional>
 #include <queue>
-#include <string>
 
 class RetransmissionTimer
 {
 public:
-  RetransmissionTimer( uint64_t initial_RTO ) : RTO_( initial_RTO ) {};
-  bool is_expired() const noexcept { return is_active_ && time_passed_ >= RTO_; }
-  bool is_active() const noexcept { return is_active_; }
-  RetransmissionTimer& active() noexcept;
-  RetransmissionTimer& Reset() noexcept;
-  RetransmissionTimer& tick( uint64_t ms ) noexcept;
-  RetransmissionTimer& Timeout() noexcept;
+  explicit RetransmissionTimer( uint64_t initial_RTO_ms ) : RTO_ms_( initial_RTO_ms ) {}
+
+  [[nodiscard]] constexpr auto is_active() const noexcept -> bool { return is_active_; }
+  [[nodiscard]] constexpr auto is_expired() const noexcept -> bool { return is_active_ and timer_ >= RTO_ms_; }
+  constexpr auto reset() noexcept -> void { timer_ = 0; }
+  constexpr auto exponential_backoff() noexcept -> void { RTO_ms_ *= 2; }
+  constexpr auto reload( uint64_t initial_RTO_ms ) noexcept -> void { RTO_ms_ = initial_RTO_ms, reset(); };
+  constexpr auto start() noexcept -> void { is_active_ = true, reset(); }
+  constexpr auto stop() noexcept -> void { is_active_ = false, reset(); }
+  constexpr auto tick( uint64_t ms_since_last_tick ) noexcept -> RetransmissionTimer&
+  {
+    timer_ += is_active_ ? ms_since_last_tick : 0;
+    return *this;
+  }
 
 private:
-  uint64_t RTO_;
-  uint64_t time_passed_ {};
   bool is_active_ {};
+  uint64_t RTO_ms_;
+  uint64_t timer_ {};
 };
+
 class TCPSender
 {
 public:
@@ -38,7 +42,7 @@ public:
 
   /* Generate an empty TCPSenderMessage */
   TCPSenderMessage make_empty_message() const;
-  TCPSenderMessage make_message( uint64_t seqno, std::string payload, bool SYN, bool FIN ) const;
+
   /* Receive and process a TCPReceiverMessage from the peer's receiver */
   void receive( const TCPReceiverMessage& msg );
 
@@ -67,11 +71,16 @@ private:
   uint64_t initial_RTO_ms_;
 
   RetransmissionTimer timer_;
-  uint64_t RetranmissionCnt_ {};
-  uint64_t next_seq_ {}; // 待发送的下一个字节的序号
-  uint64_t ack_seq_ {};  // 已经确认的字节的序号
-  uint64_t numbers_in_flight_ {};
-  uint16_t wnd_size_ { 1 };
-  std::queue<TCPSenderMessage> outgoing_bytes_ {};
-  bool SYN_ {}, FIN_ {}, SENT_SYN_ {}, SENT_FIN_ {};
+
+  bool SYN_sent_ {};
+  bool FIN_sent_ {};
+  // 下次发送substring的绝对序列号
+  uint64_t next_abs_seqno_ {};
+  // 当前已经获得ack的substring序号
+  uint64_t ack_abs_seqno_ {};
+  uint16_t window_size_ { 1 };
+  std::queue<TCPSenderMessage> outstanding_message_ {};
+
+  uint64_t total_outstanding_ {};
+  uint64_t total_retransmission_ {};
 };
