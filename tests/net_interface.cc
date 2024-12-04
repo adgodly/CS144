@@ -119,12 +119,14 @@ int main()
                     serialize( make_arp( ARPMessage::OPCODE_REQUEST, remote_eth, "10.0.1.1", {}, "7.7.7.7" ) ) ),
         {} } );
       test.execute( ExpectNoFrame {} );
+
       test.execute( ReceiveFrame {
         make_frame( remote_eth,
                     ETHERNET_BROADCAST,
                     EthernetHeader::TYPE_ARP,
                     serialize( make_arp( ARPMessage::OPCODE_REQUEST, remote_eth, "10.0.1.1", {}, "5.5.5.5" ) ) ),
         {} } );
+
       test.execute( ExpectFrame { make_frame(
         local_eth,
         remote_eth,

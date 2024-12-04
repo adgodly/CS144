@@ -1,10 +1,11 @@
 #pragma once
 
-#include <queue>
-
 #include "address.hh"
 #include "ethernet_frame.hh"
 #include "ipv4_datagram.hh"
+#include <queue>
+#include <unordered_map>
+#include <vector>
 
 // A "network interface" that connects IP (the internet layer, or network layer)
 // with Ethernet (the network access layer, or link layer).
@@ -27,6 +28,16 @@
 // the network interface passes it up the stack. If it's an ARP
 // request or reply, the network interface processes the frame
 // and learns or replies as necessary.
+struct Valid_Eth
+{
+  EthernetAddress eth_add_;
+  size_t time;
+};
+struct Datagram_buffer
+{
+  InternetDatagram dgram;
+  Address ip_add;
+};
 class NetworkInterface
 {
 public:
@@ -76,9 +87,11 @@ private:
   // Ethernet (known as hardware, network-access-layer, or link-layer) address of the interface
   EthernetAddress ethernet_address_;
 
-  // IP (known as internet-layer or network-layer) address of the interface
+  // IP (known as internet-layer or network-layer) address of the interface// Datagrams that have been received
   Address ip_address_;
-
-  // Datagrams that have been received
   std::queue<InternetDatagram> datagrams_received_ {};
+  std::unordered_map<uint32_t, size_t> IP_Request {};
+  std::unordered_map<uint32_t, Valid_Eth> ARP_table_ {};
+
+  std::vector<Datagram_buffer> datagrams_to_be_sent_ {};
 };
